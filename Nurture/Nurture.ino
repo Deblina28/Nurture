@@ -29,7 +29,6 @@ void loop()
 
 }
 
-
 void printSensors()
 {
     Serial.print(humid);
