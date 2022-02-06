@@ -25,7 +25,7 @@ int mqttPort = 1883;
 
 double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0, setTemp = 0.0, setHumid = 0.0, setMoist = 0.0;
 String t = "", rcv = "";
-boolean seamaphore = true;
+boolean seamaphore1 = true, seamaphore2 = false;
 char buf[150];
 long ls = 0, setEpoch = 10;
 
@@ -99,22 +99,26 @@ void handleMQTT(void *pv2)
 {
   for (;;)
   {
-    if ((millis() - ls > setEpoch * 1000) && seamaphore)
+    if ((millis() - ls > setEpoch * 1000) && seamaphore1)
     {
       if (setTemp > 0 && setMoist > 0)
-        t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw);
+      {
+        t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "Stats: Active";
+        seamaphore2 = true;
+      }
+
 
       else
       {
-        if (setTemp == 0.0)
-          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Temperature Not Set";
+        if (setTemp == 0.0 && setMoist == 0.0)
+          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Temperature and Moisture Not Set, Stats: Inactive";
+        else if (setTemp == 0.0)
+          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Temperature Not Set, Stats: Inactive";
         else if (setMoist == 0.0)
-          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Moisture Not Set";
-        else
-          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Temperature and Moisture Not Set";
+          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Moisture Not Set, Stats: Inactive";
       }
 
-      t.toCharArray(buf, t.length());
+      t.toCharArray(buf, t.length() + 1);
       mqttClient.publish("sicpi", buf);
       ls = millis();
     }
@@ -171,12 +175,12 @@ void handleAct()
     t = "Publishing Stopped";
     t.toCharArray(buf, 35);
     mqttClient.publish("sicpi", buf);
-    seamaphore = false;
+    seamaphore1 = false;
   }
 
   else if (rcv.startsWith("start"))
   {
-    seamaphore = true;
+    seamaphore1 = true;
     t = "Publishing Started";
     t.toCharArray(buf, 35);
     mqttClient.publish("sicpi", buf);
@@ -224,7 +228,23 @@ void readSensors(void *pv)
     mqraw = analogRead(mq2);
     soilraw = analogRead(soilm);
     Serial.println(t);
+
+    driveRelay();
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
   }
 }
+
+void driveRelay()
+{
+  if ((setTemp - temp) > 2 && seamaphore2)
+    digitalWrite(bulb, HIGH);
+  else if ((temp - setTemp) > 2 && seamaphore2)
+    digitalWrite(bulb, LOW);
+
+  if ((soilraw - setMoist) > 100 && seamaphore2)
+    digitalWrite(pump, HIGH);
+  else if (setMoist - soilraw > 100 && seamaphore2);
+  digitalWrite(pump, LOW);
+}
+
