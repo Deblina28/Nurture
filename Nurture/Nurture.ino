@@ -1,6 +1,7 @@
 #include "DHTStable.h"
 #include <Wire.h>
-
+#include <WiFi.h>
+#include <PubSubClient.h>
 
 #define DHT11_PIN 27
 #define mq2 32
@@ -9,19 +10,37 @@
 #define pump 12
 
 DHTStable DHT;
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
 TaskHandle_t task1;
+TaskHandle_t task2;
+TaskHandle_t task3;
+
+const char *ssid = "Dropkick";
+const char *pswd = "avijitdasxp";
+char *mqttServer = "saas.theakiro.com";
+int mqttPort = 1883;
 
 
-double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0;
-long ls=0;
+double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0, setTemp=0.0, setHumid=0.0, setMoist=0.0;
+String t = "", rcv = "";
+boolean seamaphore = true;
+char buf[20];
+long ls = 0;
 
 void setup() {
   Serial.begin(115200);
 
+  connectToWiFi();
+  setupMQTT();
+  if (!mqttClient.connected())
+    connectMQTT();
+  mqttClient.subscribe("Room");
 
-xTaskCreatePinnedToCore(readSensors, "Task1", 20000, NULL, 2, &task1, 1);
-
-
+  xTaskCreatePinnedToCore(readSensors, "Task1", 50000, NULL, 1, &task1, 0);
+  xTaskCreatePinnedToCore(handleMQTT, "Task2", 50000, NULL, 2, &task2, 1);
+  
 }
 
 void loop()
@@ -29,15 +48,78 @@ void loop()
 
 }
 
+void connectToWiFi()
+{
+  Serial.print("Connecting to ");
+
+  WiFi.begin(ssid, pswd);
+  Serial.println(ssid);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("Connected to WiFi.");
+}
+
+void setupMQTT()
+{
+  mqttClient.setServer(mqttServer, mqttPort);
+  mqttClient.setCallback(callback);
+}
+
+void connectMQTT()
+{
+  Serial.println("Connecting to Akiro...");
+  while (!mqttClient.connected())
+  {
+    String clientId = "sicpi";
+    if (mqttClient.connect(clientId.c_str(), "qWdhxyJzxnZY:@sicpi", "sicpi123" ))
+      Serial.println("Connected to Akiro.");
+  }
+}
+
+void callback(char* topic, byte* payload, unsigned int length)
+{
+  rcv = "";
+
+  for (int i = 0; i < length; i++)
+    rcv = rcv + (char)payload[i];
+
+rcv.toLowerCase();
+  Serial.println(rcv);
+}
+
+void handleMQTT(void *pv2)
+{
+  for (;;)
+  {
+
+    /*if ((millis() - ls > 10000)&&seamaphore)
+      {
+      t = String(soilraw) + String(mqraw) + String(soilraw) + String(mqraw);
+      t.toCharArray(buf, 20);
+      mqttClient.publish("sicpi", buf);
+      ls = millis();
+      }*/
+    if (!mqttClient.connected())
+      connectMQTT();
+    mqttClient.loop();
+  }
+}
+
+
+
+
 void printSensors()
 {
-    Serial.print(humid);
-    Serial.print(" ");
-    Serial.print(temp);
-    Serial.print(" ");
-    Serial.print(mqraw);
-    Serial.print(" ");
-    Serial.println(soilraw);
+  Serial.print(humid);
+  Serial.print(" ");
+  Serial.print(temp);
+  Serial.print(" ");
+  Serial.print(mqraw);
+  Serial.print(" ");
+  Serial.println(soilraw);
 }
 
 void readSensors(void *pv)
@@ -54,6 +136,6 @@ void readSensors(void *pv)
     soilraw = analogRead(soilm);
     printSensors();
     vTaskDelay(500 / portTICK_PERIOD_MS);
-  
+
   }
 }
