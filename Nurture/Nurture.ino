@@ -23,10 +23,10 @@ char *mqttServer = "saas.theakiro.com";
 int mqttPort = 1883;
 
 
-double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0, setTemp=0.0, setHumid=0.0, setMoist=0.0;
+double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0, setTemp = 0.0, setHumid = 0.0, setMoist = 0.0;
 String t = "", rcv = "";
 boolean seamaphore = true;
-char buf[20];
+char buf[40];
 long ls = 0;
 
 void setup() {
@@ -40,7 +40,7 @@ void setup() {
 
   xTaskCreatePinnedToCore(readSensors, "Task1", 50000, NULL, 1, &task1, 0);
   xTaskCreatePinnedToCore(handleMQTT, "Task2", 50000, NULL, 2, &task2, 1);
-  
+
 }
 
 void loop()
@@ -86,8 +86,11 @@ void callback(char* topic, byte* payload, unsigned int length)
   for (int i = 0; i < length; i++)
     rcv = rcv + (char)payload[i];
 
-rcv.toLowerCase();
-  Serial.println(rcv);
+  rcv.toLowerCase();
+
+  handleAct();
+
+  //Serial.println(rcv);
 }
 
 void handleMQTT(void *pv2)
@@ -95,13 +98,13 @@ void handleMQTT(void *pv2)
   for (;;)
   {
 
-    /*if ((millis() - ls > 10000)&&seamaphore)
-      {
-      t = String(soilraw) + String(mqraw) + String(soilraw) + String(mqraw);
-      t.toCharArray(buf, 20);
+    if ((millis() - ls > 10000) && seamaphore)
+    {
+      t = String(temp) + " " + String(humid) + " " + String(soilraw) + " " + String(mqraw);
+      t.toCharArray(buf, 30);
       mqttClient.publish("sicpi", buf);
       ls = millis();
-      }*/
+    }
     if (!mqttClient.connected())
       connectMQTT();
     mqttClient.loop();
@@ -109,6 +112,61 @@ void handleMQTT(void *pv2)
 }
 
 
+void handleAct()
+{
+  rcv.toLowerCase();
+  String t = "";
+  if (rcv.startsWith("set"))
+  {
+    if (rcv.charAt(4) == 't')
+    {
+      setTemp = rcv.substring(rcv.indexOf('=') + 2).toFloat();
+      t = "Setting Temperature to : " + setTemp;
+      t.toCharArray(buf, 35);
+      mqttClient.publish("sicpi", buf);
+    }
+
+    else if (rcv.charAt(4) == 'm')
+    {
+      setMoist = rcv.substring(rcv.indexOf('=') + 2).toFloat();
+      t = "Setting Moisture to : " + setMoist;
+      t.toCharArray(buf, 35);
+      mqttClient.publish("sicpi", buf);
+    }
+
+    else
+    {
+      t = "Wrong Syntax";
+      t.toCharArray(buf, 35);
+      mqttClient.publish("sicpi", buf);
+    }
+  }
+
+  else if (rcv.startsWith("stop"))
+  {
+    t = "Publishing Stopped";
+    t.toCharArray(buf, 35);
+    mqttClient.publish("sicpi", buf);
+    seamaphore = false;
+  }
+
+  else if (rcv.startsWith("start"))
+  {
+    seamaphore = true;
+    t = "Publishing Started";
+    t.toCharArray(buf, 35);
+    mqttClient.publish("sicpi", buf);
+  }
+
+
+  Serial.println(rcv);
+  Serial.print(setHumid);
+  Serial.print(" ");
+  Serial.print(setTemp);
+  Serial.print(" ");
+  Serial.println(setMoist);
+
+}
 
 
 void printSensors()
