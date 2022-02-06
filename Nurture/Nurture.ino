@@ -26,8 +26,8 @@ int mqttPort = 1883;
 double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0, setTemp = 0.0, setHumid = 0.0, setMoist = 0.0;
 String t = "", rcv = "";
 boolean seamaphore = true;
-char buf[40];
-long ls = 0;
+char buf[150];
+long ls = 0, setEpoch = 10;
 
 void setup() {
   Serial.begin(115200);
@@ -37,6 +37,8 @@ void setup() {
   if (!mqttClient.connected())
     connectMQTT();
   mqttClient.subscribe("Room");
+
+
 
   xTaskCreatePinnedToCore(readSensors, "Task1", 50000, NULL, 1, &task1, 0);
   xTaskCreatePinnedToCore(handleMQTT, "Task2", 50000, NULL, 2, &task2, 1);
@@ -90,18 +92,29 @@ void callback(char* topic, byte* payload, unsigned int length)
 
   handleAct();
 
-  //Serial.println(rcv);
+
 }
 
 void handleMQTT(void *pv2)
 {
   for (;;)
   {
-
-    if ((millis() - ls > 10000) && seamaphore)
+    if ((millis() - ls > setEpoch * 1000) && seamaphore)
     {
-      t = String(temp) + " " + String(humid) + " " + String(soilraw) + " " + String(mqraw);
-      t.toCharArray(buf, 30);
+      if (setTemp > 0 && setMoist > 0)
+        t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw);
+
+      else
+      {
+        if (setTemp == 0.0)
+          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Temperature Not Set";
+        else if (setMoist == 0.0)
+          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Moisture Not Set";
+        else
+          t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + "\tNote: Temperature and Moisture Not Set";
+      }
+
+      t.toCharArray(buf, t.length());
       mqttClient.publish("sicpi", buf);
       ls = millis();
     }
@@ -115,21 +128,32 @@ void handleMQTT(void *pv2)
 void handleAct()
 {
   rcv.toLowerCase();
-  String t = "";
+
   if (rcv.startsWith("set"))
   {
     if (rcv.charAt(4) == 't')
     {
-      setTemp = rcv.substring(rcv.indexOf('=') + 2).toFloat();
-      t = "Setting Temperature to : " + setTemp;
+      t = rcv.substring(rcv.indexOf('=') + 2);
+      setTemp = t.toFloat();
+      t = "Setting Temperature to : " + t;
       t.toCharArray(buf, 35);
       mqttClient.publish("sicpi", buf);
     }
 
     else if (rcv.charAt(4) == 'm')
     {
-      setMoist = rcv.substring(rcv.indexOf('=') + 2).toFloat();
-      t = "Setting Moisture to : " + setMoist;
+      t = rcv.substring(rcv.indexOf('=') + 2);
+      setMoist = t.toFloat();
+      t = "Setting Moisture to : " + t;
+      t.toCharArray(buf, 35);
+      mqttClient.publish("sicpi", buf);
+    }
+
+    else if (rcv.charAt(4) == 'e')
+    {
+      t = rcv.substring(rcv.indexOf('=') + 2);
+      setEpoch = t.toFloat();
+      t = "Setting Epoch to : " + t;
       t.toCharArray(buf, 35);
       mqttClient.publish("sicpi", buf);
     }
@@ -154,6 +178,13 @@ void handleAct()
   {
     seamaphore = true;
     t = "Publishing Started";
+    t.toCharArray(buf, 35);
+    mqttClient.publish("sicpi", buf);
+  }
+
+  else
+  {
+    t = "Wrong Syntax";
     t.toCharArray(buf, 35);
     mqttClient.publish("sicpi", buf);
   }
@@ -192,7 +223,7 @@ void readSensors(void *pv)
 
     mqraw = analogRead(mq2);
     soilraw = analogRead(soilm);
-    printSensors();
+    Serial.println(t);
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
   }
