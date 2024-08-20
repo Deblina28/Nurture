@@ -111,7 +111,7 @@ void connectMQTT()
   while (!mqttClient.connected())
   {
     String clientId = "sicpi";
-    if (mqttClient.connect(clientId.c_str(), "qWdhxyJzxnZY:@sicpi", "sicpi123" ))
+    if (mqttClient.connect(clientId.c_str(), "_0_", "__0__" ))
       Serial.println("Connected to Akiro.");
   }
   delay(2000);
