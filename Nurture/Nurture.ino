@@ -30,7 +30,7 @@ int mqttPort = 1883;
 int state = 0;
 double temp = 0.0, humid = 0.0, soilraw = 0.0, mqraw = 0.0, setTemp = 0.0, setHumid = 0.0, setMoist = 0.0;
 String t = "", rcv = "";
-boolean seamaphore1 = true, seamaphore2 = false, isConnectedWiFi = false, stats = false;
+boolean flag1 = true, flag2 = false, isConnectedWiFi = false, stats = false;
 char buf[150];
 long ls = 0, setEpoch = 10;
 
@@ -137,12 +137,12 @@ void handleMQTT(void *pv2)
 {
   for (;;)
   {
-    if ((millis() - ls > setEpoch * 1000) && seamaphore1)
+    if ((millis() - ls > setEpoch * 1000) && flag1)
     {
       if (setTemp > 0 && setMoist > 0)
       {
         t = "Temperature : " + String(temp) + "\tHumidity : " + String(humid) + "\tMoisture : " + String(soilraw) + "\tC02 content : " + String(mqraw) + ", Stats: Active";
-        seamaphore2 = true;
+        flag2 = true;
       }
 
 
@@ -213,12 +213,12 @@ void handleAct()
     t = "Publishing Stopped";
     t.toCharArray(buf, 35);
     mqttClient.publish("sicpi", buf);
-    seamaphore1 = false;
+    flag1 = false;
   }
 
   else if (rcv.startsWith("start"))
   {
-    seamaphore1 = true;
+    flag1 = true;
     t = "Publishing Started";
     t.toCharArray(buf, 35);
     mqttClient.publish("sicpi", buf);
@@ -275,14 +275,14 @@ void readSensors(void *pv)
 
 void driveRelay()
 {
-  if (((setTemp - temp) > 2) && seamaphore2)
+  if (((setTemp - temp) > 2) && flag2)
     digitalWrite(bulb, HIGH);
-  else if (((temp - setTemp) > 2) && seamaphore2)
+  else if (((temp - setTemp) > 2) && flag2)
     digitalWrite(bulb, LOW);
 
-  if (((soilraw - setMoist) > 100) && seamaphore2)
+  if (((soilraw - setMoist) > 100) && flag2)
     digitalWrite(pump, HIGH);
-  else if (((setMoist - soilraw) > 100) && seamaphore2)
+  else if (((setMoist - soilraw) > 100) && flag2)
     digitalWrite(pump, LOW);
 }
 
@@ -295,7 +295,7 @@ void driveOLED(void *pv)
     delay(5000);
 
     u8x8.clear();
-    if (!seamaphore2)
+    if (!flag2)
     {
       z1 = "Note temperature";
       z2 = "And/Or Humidity";
