@@ -22,8 +22,8 @@ TaskHandle_t task3;
 U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(22, 21, U8X8_PIN_NONE);
 
 
-const char *ssid = "Dropkick";
-const char *pswd = "avijitdasxp";
+const char *ssid = "ssid";
+const char *pswd = "1234";
 char *mqttServer = "saas.theakiro.com";
 int mqttPort = 1883;
 
